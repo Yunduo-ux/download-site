@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="dark light">
   <title>云朵 · 下载中心</title>
 
-  <!-- 图标：确保根目录有真正的 ICO（建议含16/32/48多尺寸）-->
+  <!-- 图标：确保根目录有真正 ICO；加版本号避免缓存 -->
   <link rel="icon" href="/favicon.ico?v=3" type="image/x-icon" sizes="any">
   <link rel="shortcut icon" href="/favicon.ico?v=3" type="image/x-icon">
   <link rel="icon" href="/favicon-32.png?v=3" sizes="32x32" type="image/png">
@@ -35,10 +35,7 @@
     <div class="card">
       <!-- 不暴露真实链接：href="#" + data-url -->
       <a id="dl-main" class="btn primary" href="#" data-url="">全球线路（加速镜像）</a>
-
-      <a id="dl-github" class="btn secondary" href="#" data-url="">
-        备用线路（GitHub 直链）
-      </a>
+      <a id="dl-github" class="btn secondary" href="#" data-url="">备用线路（GitHub 直链）</a>
 
       <p><small>
         若某条线路慢/打不开，请切换另一条。下载后请校验 <code>SHA256</code>：
@@ -57,26 +54,26 @@
   <script>
   const owner = "Yunduo-ux";
   const repo  = "download-site";
-  const fixedAsset = "Yunduo_Setup.zip";
-
   const originBase   = location.origin;                          // https://download.leizhenyu.xyz
-  const mirrorProbe  = `${originBase}/dl/ping`;                  // 轻量探测端点
-  const mirrorLatest = `${originBase}/dl/latest`;                // 镜像最新
-  const ghLatest     = `https://github.com/${owner}/${repo}/releases/latest/download/${fixedAsset}`;
-
-  function smartDownload(url){
-    let f = document.getElementById('dl-frame');
-    if(!f){ f=document.createElement('iframe'); f.id='dl-frame'; f.style.display='none'; document.body.appendChild(f); }
-    try{ f.src = url; }catch(e){}
-    // 兜底：0.6s 同页跳转一次，确保一定能下
-    setTimeout(()=>{ try{ location.href = url; }catch(e){} }, 600);
-  }
+  const mirrorProbe  = `${originBase}/dl/ping`;
+  const mirrorLatest = `${originBase}/dl/latest`;
+  const stableName   = "Yunduo_Setup.zip";                       // 稳定文件名
+  const ghLatest     = `https://github.com/${owner}/${repo}/releases/latest/download/${stableName}`;
 
   function bindButton(a){
     a.addEventListener('click', e=>{
-      e.preventDefault();                            // 不让 a 的默认跳转触发
+      e.preventDefault();
       const url = a.dataset.url;
-      if(url) smartDownload(url);
+      if(!url) return;
+
+      // 同域镜像：用隐藏 iframe 实现不跳转；外域(GitHub)只跳一次，避免“双下载”
+      if (url.startsWith(originBase)) {
+        let f = document.getElementById('dl-frame');
+        if(!f){ f=document.createElement('iframe'); f.id='dl-frame'; f.style.display='none'; document.body.appendChild(f); }
+        try{ f.src = url; }catch(e){}
+      } else {
+        location.href = url;
+      }
     });
   }
 
@@ -88,19 +85,16 @@
     }catch{}
   }
 
-  async function probeAndSetButtons(){
-    // 先把备用直链写上，避免探测失败时空白
-    const main = document.getElementById("dl-main");
+  async function probeAndSet(){
+    // 先把“备用直链”写好，主按钮默认也先给 GitHub
+    const main  = document.getElementById("dl-main");
     const ghBtn = document.getElementById("dl-github");
     main.dataset.url  = ghLatest;
     ghBtn.dataset.url = ghLatest;
 
     try{
-      // 用 /dl/ping 探测 Worker（避免对大文件发 HEAD）
-      const r = await fetch(mirrorProbe, { method: "GET", cache: "no-store" });
-      if (r.ok) {
-        main.dataset.url = mirrorLatest;            // 主按钮切到镜像
-      }
+      const r = await fetch(mirrorProbe, { method:"GET", cache:"no-store" });
+      if (r.ok) main.dataset.url = mirrorLatest;  // 镜像可用则切过去
     }catch{}
   }
 
@@ -116,7 +110,9 @@
       list.forEach(rel=>{
         const zips = (rel.assets||[]).filter(a=>/\.zip$/i.test(a.name));
         if(!zips.length) return;
-        const best = zips.sort((a,b)=>b.size-a.size)[0];
+        // 选名字里与 stableName 最接近的；没有就挑体积最大
+        let best = zips.find(a => a.name.toLowerCase() === stableName.toLowerCase());
+        if(!best) best = zips.sort((a,b)=>b.size-a.size)[0];
 
         const link = useMirror
           ? `${originBase}/dl/file/${encodeURIComponent(rel.tag_name)}/${encodeURIComponent(best.name)}`
@@ -135,13 +131,11 @@
     }
   }
 
-  // 绑定按钮
   bindButton(document.getElementById("dl-main"));
   bindButton(document.getElementById("dl-github"));
 
-  // 初始化
   setVersion();
-  probeAndSetButtons().then(buildHistory);
+  probeAndSet().then(buildHistory);
   </script>
 </body>
 </html>
