@@ -5,8 +5,14 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="dark light">
   <title>云朵 · 下载中心</title>
-  <!-- 把 favicon.ico 放到仓库根目录（与 index.html 同级） -->
-  <link rel="icon" href="/favicon.ico">
+
+  <!-- 多尺寸图标：把这些文件放在仓库根目录；没有 PNG 也没关系，先留 favicon.ico 就行 -->
+  <link rel="icon" href="/favicon.ico?v=1" type="image/x-icon">
+  <link rel="icon" href="/favicon-32.png?v=1" sizes="32x32" type="image/png">
+  <link rel="icon" href="/favicon-16.png?v=1" sizes="16x16" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=1">
+  <meta name="theme-color" content="#0f172a">
+
   <style>
     body{margin:0;background:#0f172a;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,Roboto,PingFang SC}
     .wrap{max-width:760px;margin:8vh auto;padding:24px}
@@ -23,31 +29,88 @@
 <body>
   <div class="wrap">
     <h1>云朵 · 安装包下载</h1>
-    <p>最新版：<b>v2.0</b> · 体积约 300+ MB</p>
+    <p>最新版：<b class="version">加载中…</b> · 体积约 300+ MB</p>
 
     <div class="card">
-      <!-- 主下载（GitHub Releases 直链） -->
-      <a class="btn primary" target="_blank" rel="noopener"
-         href="https://github.com/Yunduo-ux/download-site/releases/download/v2.0/Yunduo_Setup_2_0.zip">
-        全球线路（直链）
-      </a>
-      <!-- 备用镜像：需要时把链接换成你的镜像地址 -->
-      <a class="btn secondary" target="_blank" rel="noopener"
-         href="https://gofile.io/d/你的ID">
-        备用线路（镜像）
-      </a>
-      <p><small>若某条线路慢/打不开，请切换另一条。下载后校验 <code>SHA256</code>：
-        <b>0E399A5375792076CD6845209609254F3C8DEFBEEF582251AB2AA3D6F9B5DCDB</b>
+      <!-- 主下载：脚本会接管 href，不跳转本页 -->
+      <a id="dl-main" class="btn primary" href="#">全球线路（加速镜像）</a>
+
+      <!-- 备用：GitHub 直链兜底（也会被脚本本页触发） -->
+      <a id="dl-github" class="btn secondary" href="#">备用线路（GitHub 直链）</a>
+
+      <p><small>
+        若某条线路慢/打不开，请切换另一条。下载后请校验 <code>SHA256</code>：
+        <b id="sha256">（0E399A5375792076CD6845209609254F3C8DEFBEEF582251AB2AA3D6F9B5DCDB）</b>
       </small></p>
     </div>
 
     <div class="card">
       <h3>历史版本</h3>
-      <a class="btn secondary" target="_blank" rel="noopener"
-         href="https://github.com/Yunduo-ux/download-site/releases">查看历史版本</a>
+      <div id="history">加载历史版本中…</div>
     </div>
 
     <p><small>© 云朵下载中心 · 仅分发页面，不收集个人信息。</small></p>
   </div>
+
+  <script>
+  const owner = "Yunduo-ux";
+  const repo  = "download-site";                // 例如 download-site
+  const fixedAsset = "Yunduo_Setup.zip";  // “latest”固定文件名（发布脚本已自动生成）
+
+  // 同域镜像前缀：/dl 由 Cloudflare Worker 提供（下面给你代码）
+  const mirrorLatest = `${location.origin}/dl/latest`;
+
+  function downloadInPlace(url){
+    let f = document.getElementById('dl-frame');
+    if(!f){ f=document.createElement('iframe'); f.id='dl-frame'; f.style.display='none'; document.body.appendChild(f); }
+    try{ f.src = url; }catch(e){ location.href = url; }
+  }
+
+  async function loadLatest(){
+    const r  = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`);
+    const d  = await r.json();
+    const tag = d.tag_name || "latest";
+    document.querySelector(".version").textContent = tag;
+
+    // GitHub 直链（latest 固定名）
+    const gh = `https://github.com/${owner}/${repo}/releases/latest/download/${fixedAsset}`;
+
+    // 主按钮：优先镜像，失败自动回退
+    const main = document.getElementById("dl-main");
+    main.onclick = (e)=>{ e.preventDefault(); downloadInPlace(mirrorLatest); };
+    main.href = mirrorLatest; // 兜底
+
+    // 备用按钮：GitHub 直链
+    const ghBtn = document.getElementById("dl-github");
+    ghBtn.onclick = (e)=>{ e.preventDefault(); downloadInPlace(gh); };
+    ghBtn.href = gh;
+  }
+
+  async function loadHistory(limit=8){
+    const r = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases?per_page=${limit}`);
+    const list = await r.json();
+    const box = document.getElementById("history");
+    box.innerHTML = "";
+    list.forEach(rel=>{
+      const zips = (rel.assets||[]).filter(a=>/\.zip$/i.test(a.name));
+      if(!zips.length) return;
+      // 选这个版本里最大的 zip
+      const best = zips.sort((a,b)=>b.size-a.size)[0];
+
+      // 镜像路径：/dl/file/<tag>/<assetName>（Worker 会实现）
+      const mirror = `${location.origin}/dl/file/${encodeURIComponent(rel.tag_name)}/${encodeURIComponent(best.name)}`;
+
+      const a = document.createElement("a");
+      a.className = "btn secondary";
+      a.textContent = `${rel.tag_name} · ${best.name}`;
+      a.href = mirror;
+      a.onclick = (e)=>{ e.preventDefault(); downloadInPlace(mirror); };
+      box.appendChild(a);
+    });
+  }
+
+  loadLatest().catch(console.error);
+  loadHistory().catch(console.error);
+  </script>
 </body>
 </html>
