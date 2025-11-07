@@ -54,10 +54,9 @@
   <script>
   const owner = "Yunduo-ux";
   const repo  = "download-site";
-  const originBase   = location.origin;                          // https://download.leizhenyu.xyz
-  const mirrorProbe  = `${originBase}/dl/ping`;
-  const mirrorLatest = `${originBase}/dl/latest`;
-  const stableName   = "Yunduo_Setup.zip";                       // 稳定文件名
+  const originBase   = location.origin;                 // https://download.leizhenyu.xyz
+  const mirrorLatest = `${originBase}/dl/latest`;       // 直连域名（Worker 镜像）
+  const stableName   = "Yunduo_Setup.zip";
   const ghLatest     = `https://github.com/${owner}/${repo}/releases/latest/download/${stableName}`;
 
   function bindButton(a){
@@ -66,7 +65,7 @@
       const url = a.dataset.url;
       if(!url) return;
 
-      // 同域镜像：用隐藏 iframe 实现不跳转；外域(GitHub)只跳一次，避免“双下载”
+      // 同域用隐藏 iframe，避免整页跳转；外域直跳一次
       if (url.startsWith(originBase)) {
         let f = document.getElementById('dl-frame');
         if(!f){ f=document.createElement('iframe'); f.id='dl-frame'; f.style.display='none'; document.body.appendChild(f); }
@@ -85,17 +84,12 @@
     }catch{}
   }
 
-  async function probeAndSet(){
-    // 先把“备用直链”写好，主按钮默认也先给 GitHub
+  // ——按你的要求：主通道固定走直连域名，备用通道保留 GitHub——
+  function setChannels(){
     const main  = document.getElementById("dl-main");
     const ghBtn = document.getElementById("dl-github");
-    main.dataset.url  = ghLatest;
-    ghBtn.dataset.url = ghLatest;
-
-    try{
-      const r = await fetch(mirrorProbe, { method:"GET", cache:"no-store" });
-      if (r.ok) main.dataset.url = mirrorLatest;  // 镜像可用则切过去
-    }catch{}
+    main.dataset.url  = mirrorLatest;   // 全球通道 = 域名直连
+    ghBtn.dataset.url = ghLatest;       // 备用通道 = GitHub 直链
   }
 
   async function buildHistory(limit=8){
@@ -105,18 +99,15 @@
       const box = document.getElementById("history");
       box.innerHTML = "";
 
-      const useMirror = document.getElementById("dl-main").dataset.url === mirrorLatest;
-
+      // 历史版本固定走直连域名
       list.forEach(rel=>{
         const zips = (rel.assets||[]).filter(a=>/\.zip$/i.test(a.name));
         if(!zips.length) return;
-        // 选名字里与 stableName 最接近的；没有就挑体积最大
+
         let best = zips.find(a => a.name.toLowerCase() === stableName.toLowerCase());
         if(!best) best = zips.sort((a,b)=>b.size-a.size)[0];
 
-        const link = useMirror
-          ? `${originBase}/dl/file/${encodeURIComponent(rel.tag_name)}/${encodeURIComponent(best.name)}`
-          : `https://github.com/${owner}/${repo}/releases/download/${encodeURIComponent(rel.tag_name)}/${encodeURIComponent(best.name)}`;
+        const link = `${originBase}/dl/file/${encodeURIComponent(rel.tag_name)}/${encodeURIComponent(best.name)}`;
 
         const a = document.createElement("a");
         a.className = "btn secondary";
@@ -135,7 +126,8 @@
   bindButton(document.getElementById("dl-github"));
 
   setVersion();
-  probeAndSet().then(buildHistory);
+  setChannels();       // 直接设为直连域名
+  buildHistory();      // 历史也走直连域名
   </script>
 </body>
 </html>
