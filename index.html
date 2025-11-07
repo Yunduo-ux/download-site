@@ -6,11 +6,12 @@
   <meta name="color-scheme" content="dark light">
   <title>云朵 · 下载中心</title>
 
-  <!-- 多尺寸图标：把这些文件放在仓库根目录；没有 PNG 也没关系，先留 favicon.ico 就行 -->
-  <link rel="icon" href="/favicon.ico?v=1" type="image/x-icon">
-  <link rel="icon" href="/favicon-32.png?v=1" sizes="32x32" type="image/png">
-  <link rel="icon" href="/favicon-16.png?v=1" sizes="16x16" type="image/png">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=1">
+  <!-- 图标：多写法 + 缓存 bust。确保 /favicon.ico 是真正 ICO -->
+  <link rel="icon" href="/favicon.ico?v=2" type="image/x-icon" sizes="any">
+  <link rel="shortcut icon" href="/favicon.ico?v=2" type="image/x-icon">
+  <link rel="icon" href="/favicon-32.png?v=2" sizes="32x32" type="image/png">
+  <link rel="icon" href="/favicon-16.png?v=2" sizes="16x16" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
   <meta name="theme-color" content="#0f172a">
 
   <style>
@@ -32,15 +33,21 @@
     <p>最新版：<b class="version">加载中…</b> · 体积约 300+ MB</p>
 
     <div class="card">
-      <!-- 主下载：脚本会接管 href，不跳转本页 -->
-      <a id="dl-main" class="btn primary" href="#">全球线路（加速镜像）</a>
+      <!-- 先放 GitHub 直链作为兜底；JS 探测镜像可用后再替换为 /dl/latest -->
+      <a id="dl-main" class="btn primary"
+         href="https://github.com/Yunduo-ux/download-site/releases/latest/download/Yunduo_Setup.zip">
+        全球线路（加速镜像）
+      </a>
 
-      <!-- 备用：GitHub 直链兜底（也会被脚本本页触发） -->
-      <a id="dl-github" class="btn secondary" href="#">备用线路（GitHub 直链）</a>
+      <!-- 备用：GitHub 直链（固定 latest 文件名） -->
+      <a id="dl-github" class="btn secondary"
+         href="https://github.com/Yunduo-ux/download-site/releases/latest/download/Yunduo_Setup.zip">
+        备用线路（GitHub 直链）
+      </a>
 
       <p><small>
         若某条线路慢/打不开，请切换另一条。下载后请校验 <code>SHA256</code>：
-        <b id="sha256">（0E399A5375792076CD6845209609254F3C8DEFBEEF582251AB2AA3D6F9B5DCDB）</b>
+        <b id="sha256">0E399A5375792076CD6845209609254F3C8DEFBEEF582251AB2AA3D6F9B5DCDB</b>
       </small></p>
     </div>
 
@@ -54,63 +61,82 @@
 
   <script>
   const owner = "Yunduo-ux";
-  const repo  = "download-site";                // 例如 download-site
-  const fixedAsset = "Yunduo_Setup.zip";  // “latest”固定文件名（发布脚本已自动生成）
-
-  // 同域镜像前缀：/dl 由 Cloudflare Worker 提供（下面给你代码）
+  const repo  = "download-site";
+  const fixedAsset = "Yunduo_Setup.zip";  // 发布脚本上传的固定名
+  const ghLatest = `https://github.com/${owner}/${repo}/releases/latest/download/${fixedAsset}`;
   const mirrorLatest = `${location.origin}/dl/latest`;
 
-  function downloadInPlace(url){
+  // 轻量“无跳转”尝试：iframe + 定时兜底到同页导航
+  function smartDownload(url){
     let f = document.getElementById('dl-frame');
     if(!f){ f=document.createElement('iframe'); f.id='dl-frame'; f.style.display='none'; document.body.appendChild(f); }
-    try{ f.src = url; }catch(e){ location.href = url; }
+    try{ f.src = url; }catch(e){}
+    // 防止被 X-Frame-Options 拦截时“无感”，0.5s 后兜底为同页导航
+    setTimeout(()=>{ try{ window.location.href = url; }catch(e){} }, 500);
   }
 
-  async function loadLatest(){
-    const r  = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`);
-    const d  = await r.json();
-    const tag = d.tag_name || "latest";
-    document.querySelector(".version").textContent = tag;
-
-    // GitHub 直链（latest 固定名）
-    const gh = `https://github.com/${owner}/${repo}/releases/latest/download/${fixedAsset}`;
-
-    // 主按钮：优先镜像，失败自动回退
-    const main = document.getElementById("dl-main");
-    main.onclick = (e)=>{ e.preventDefault(); downloadInPlace(mirrorLatest); };
-    main.href = mirrorLatest; // 兜底
-
-    // 备用按钮：GitHub 直链
-    const ghBtn = document.getElementById("dl-github");
-    ghBtn.onclick = (e)=>{ e.preventDefault(); downloadInPlace(gh); };
-    ghBtn.href = gh;
+  async function setVersion(){
+    try{
+      const r  = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`);
+      const d  = await r.json();
+      document.querySelector(".version").textContent = d.tag_name || "latest";
+    }catch(e){ /* 忽略失败，保留默认文案 */ }
   }
 
-  async function loadHistory(limit=8){
-    const r = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases?per_page=${limit}`);
-    const list = await r.json();
-    const box = document.getElementById("history");
-    box.innerHTML = "";
-    list.forEach(rel=>{
-      const zips = (rel.assets||[]).filter(a=>/\.zip$/i.test(a.name));
-      if(!zips.length) return;
-      // 选这个版本里最大的 zip
-      const best = zips.sort((a,b)=>b.size-a.size)[0];
-
-      // 镜像路径：/dl/file/<tag>/<assetName>（Worker 会实现）
-      const mirror = `${location.origin}/dl/file/${encodeURIComponent(rel.tag_name)}/${encodeURIComponent(best.name)}`;
-
-      const a = document.createElement("a");
-      a.className = "btn secondary";
-      a.textContent = `${rel.tag_name} · ${best.name}`;
-      a.href = mirror;
-      a.onclick = (e)=>{ e.preventDefault(); downloadInPlace(mirror); };
-      box.appendChild(a);
-    });
+  async function probeMirror(){
+    // 同域 HEAD 探测镜像是否可用，200 则启用镜像
+    try{
+      const r = await fetch(mirrorLatest, {method:"HEAD", cache:"no-store"});
+      if(r.ok){
+        const main = document.getElementById("dl-main");
+        main.href = mirrorLatest;
+      }
+    }catch(e){}
   }
 
-  loadLatest().catch(console.error);
-  loadHistory().catch(console.error);
+  async function buildHistory(limit=8){
+    try{
+      const r = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases?per_page=${limit}`);
+      const list = await r.json();
+      const box = document.getElementById("history");
+      box.innerHTML = "";
+      list.forEach(rel=>{
+        const zips = (rel.assets||[]).filter(a=>/\.zip$/i.test(a.name));
+        if(!zips.length) return;
+        const best = zips.sort((a,b)=>b.size-a.size)[0];
+
+        // 默认用 GitHub 直链；若镜像可用则换镜像
+        let link = `https://github.com/${owner}/${repo}/releases/download/${encodeURIComponent(rel.tag_name)}/${encodeURIComponent(best.name)}`;
+        // 简单判断：如果主按钮已经被切到镜像，就也切历史为镜像
+        if (document.getElementById("dl-main").href.includes("/dl/latest")){
+          link = `${location.origin}/dl/file/${encodeURIComponent(rel.tag_name)}/${encodeURIComponent(best.name)}`;
+        }
+
+        const a = document.createElement("a");
+        a.className = "btn secondary";
+        a.textContent = `${rel.tag_name} · ${best.name}`;
+        a.href = link;
+        a.onclick = (e)=>{ /* 不阻止默认行为，确保一定能触发下载 */
+          smartDownload(link);  // 尝试无跳转
+        };
+        box.appendChild(a);
+      });
+    }catch(e){
+      document.getElementById("history").textContent = "历史版本加载失败";
+    }
+  }
+
+  // 主按钮也加上“尝试无跳转 + 不阻止默认导航”
+  document.getElementById("dl-main").addEventListener("click", function(e){
+    smartDownload(this.href);
+  });
+  document.getElementById("dl-github").addEventListener("click", function(e){
+    smartDownload(this.href);
+  });
+
+  setVersion();
+  probeMirror();
+  buildHistory();
   </script>
 </body>
 </html>
