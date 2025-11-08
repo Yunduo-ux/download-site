@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="dark light">
   <title>云朵 · 下载中心</title>
 
-  <!-- 图标：确保根目录有真正 ICO；加版本号避免缓存 -->
+
   <link rel="icon" href="/favicon.ico?v=3" type="image/x-icon" sizes="any">
   <link rel="shortcut icon" href="/favicon.ico?v=3" type="image/x-icon">
   <link rel="icon" href="/favicon-32.png?v=3" sizes="32x32" type="image/png">
@@ -33,7 +33,7 @@
     <p>最新版：<b class="version">加载中…</b> · 体积约 300+ MB</p>
 
     <div class="card">
-      <!-- 不暴露真实链接：href="#" + data-url -->
+
       <a id="dl-main" class="btn primary" href="#" data-url="">全球线路</a>
       <a id="dl-github" class="btn secondary" href="#" data-url="">备用线路</a>
 
@@ -54,8 +54,8 @@
   <script>
   const owner = "Yunduo-ux";
   const repo  = "download-site";
-  const originBase   = location.origin;                 // https://download.leizhenyu.xyz
-  const mirrorLatest = `${originBase}/dl/latest`;       // 直连域名（Worker 镜像）
+  const originBase   = location.origin; 
+  const mirrorLatest = `${originBase}/dl/latest`;
   const stableName   = "Yunduo_Setup.zip";
   const ghLatest     = `https://github.com/${owner}/${repo}/releases/latest/download/${stableName}`;
 
@@ -65,7 +65,7 @@
       const url = a.dataset.url;
       if(!url) return;
 
-      // 同域用隐藏 iframe，避免整页跳转；外域直跳一次
+
       if (url.startsWith(originBase)) {
         let f = document.getElementById('dl-frame');
         if(!f){ f=document.createElement('iframe'); f.id='dl-frame'; f.style.display='none'; document.body.appendChild(f); }
@@ -84,12 +84,12 @@
     }catch{}
   }
 
-  // ——按你的要求：主通道固定走直连域名，备用通道保留 GitHub——
+
   function setChannels(){
     const main  = document.getElementById("dl-main");
     const ghBtn = document.getElementById("dl-github");
-    main.dataset.url  = mirrorLatest;   // 全球通道 = 域名直连
-    ghBtn.dataset.url = ghLatest;       // 备用通道 = GitHub 直链
+    main.dataset.url  = mirrorLatest;
+    ghBtn.dataset.url = ghLatest;
   }
 
   async function buildHistory(limit=8){
@@ -99,7 +99,7 @@
       const box = document.getElementById("history");
       box.innerHTML = "";
 
-      // 历史版本固定走直连域名
+
       list.forEach(rel=>{
         const zips = (rel.assets||[]).filter(a=>/\.zip$/i.test(a.name));
         if(!zips.length) return;
@@ -126,8 +126,8 @@
   bindButton(document.getElementById("dl-github"));
 
   setVersion();
-  setChannels();       // 直接设为直连域名
-  buildHistory();      // 历史也走直连域名
+  setChannels();
+  buildHistory();
   </script>
 </body>
 </html>
