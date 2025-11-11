@@ -39,7 +39,7 @@
 
       <p><small>
         若某条线路慢/打不开，请切换另一条。下载后请校验 <code>SHA256</code>：
-        <b id="sha256">0E399A5375792076CD6845209609254F3C8DEFBEEF582251AB2AA3D6F9B5DCDB</b>
+        <b id="sha256">CBA3AC0140184D76729CFF7129BC14343B9C3A03E5BE3E46DCC6D112EE70A287</b>
       </small></p>
     </div>
 
@@ -56,7 +56,7 @@
   const repo  = "download-site";
   const originBase   = location.origin; 
   const mirrorLatest = `${originBase}/dl/latest`;
-  const stableName   = "Yunduo_Setup.zip";
+  const stableName   = "Yunduo_Setup_x64.exe";
   const ghLatest     = `https://github.com/${owner}/${repo}/releases/latest/download/${stableName}`;
 
   function bindButton(a){
@@ -101,11 +101,11 @@
 
 
       list.forEach(rel=>{
-        const zips = (rel.assets||[]).filter(a=>/\.zip$/i.test(a.name));
-        if(!zips.length) return;
+        const exes = (rel.assets||[]).filter(a=>/\.exe$/i.test(a.name));
+        if(!exes.length) return;
 
-        let best = zips.find(a => a.name.toLowerCase() === stableName.toLowerCase());
-        if(!best) best = zips.sort((a,b)=>b.size-a.size)[0];
+        let best = exes.find(a => /_x64\.exe$/i.test(a.name)) || exes.sort((a,b)=>b.size-a.size)[0];
+
 
         const link = `${originBase}/dl/file/${encodeURIComponent(rel.tag_name)}/${encodeURIComponent(best.name)}`;
 
