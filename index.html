@@ -101,10 +101,15 @@
 
 
       list.forEach(rel=>{
-        const exes = (rel.assets||[]).filter(a=>/\.exe$/i.test(a.name));
-        if(!exes.length) return;
-
-        let best = exes.find(a => /_x64\.exe$/i.test(a.name)) || exes.sort((a,b)=>b.size-a.size)[0];
+      
+        const exes = (rel.assets || []).filter(a =>
+          /\.exe$/i.test(a.name) && a.name.toLowerCase() !== stableName.toLowerCase()
+        );
+        if (!exes.length) return;
+        
+        
+        const ver  = (rel.tag_name || "").replace(/^v/i, ""); // v2.2.0 -> 2.2.0
+        let best = exes.find(a => a.name.includes(ver)) || exes.sort((a,b)=>b.size-a.size)[0];
 
 
         const link = `${originBase}/dl/file/${encodeURIComponent(rel.tag_name)}/${encodeURIComponent(best.name)}`;
